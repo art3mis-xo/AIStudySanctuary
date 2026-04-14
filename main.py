@@ -256,7 +256,8 @@ async def chat_stream(request: ChatRequest, db: Session = Depends(get_session), 
         for token in tokens:
           if token:
               # Escape newlines to prevent them from breaking SSE formatting
-              yield f"data:{token.replace('\n', '<BR>')}\n\n"
+              formatted_token = token.replace('\n', '<BR>')
+              yield f"data:{formatted_token}\n\n"
               await asyncio.sleep(0.01)
         
         # Finally send the metadata (sources, score, etc.)
