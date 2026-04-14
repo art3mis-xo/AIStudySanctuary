@@ -6,7 +6,7 @@ import os
 import json
 import asyncio
 from typing import List
-from fastapi import FastAPI, Depends, File, UploadFile, Form
+from fastapi import FastAPI, Depends, File, UploadFile, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session, select
