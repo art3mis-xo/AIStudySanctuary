@@ -1,0 +1,82 @@
+#test1:  with RAG sources:
+in /upload, add session id: my_test_session_123, and uplaod the secret_info.docx
+{
+   "session_id": "my_test_session_123",
+   "message": "Who created Python and what is the secret password?",
+   "mode": "learn",
+   "user_answer": "string"
+}
+
+#Test 2: Quiz & Evaluation
+  Goal: Test the automated testing and robust scoring system.
+
+   1. Get a Quiz:
+       * Endpoint: POST /chat
+       * JSON Payload:
+        {
+            "session_id": "test_all_features",
+            "message": "Python Decorators",
+            "mode": "quiz"      
+        }
+       * Action: Copy the question the AI gives you.
+   2. Submit an Answer:
+       * Endpoint: POST /chat
+       * JSON Payload (Change user_answer to your actual answer):
+
+          {
+            "session_id": "test_all_features",
+            "message": "Evaluating my answer",
+            "mode": "evaluate",
+            "user_answer": "Decorators are functions that modify the behavior of another function without changing its source code."
+          }
+       * Expected Result: type is evaluation_feedback. score is a number (e.g., 9). feedback is structured text.
+
+  ---
+
+  Test 3: Context Engineering (Long-Term Memory)
+  Goal: Prove the system "remembers" old chats by archiving them to RAG.
+
+   1. Start a specific topic: Send this message first:
+       * POST /chat -> {"session_id": "test_all_features", "message": "My favorite color is neon green.", "mode": "learn"}
+   2. Fill the buffer: Send 10 more short messages (e.g., "Hello", "Okay", "Continue", etc.) to the same session. This triggers the "archiving" of that
+      first message.
+   3. Test the Memory:
+       * Endpoint: POST /chat
+       * JSON Payload:
+          {
+            "session_id": "test_all_features",
+            "message": "What is my favorite color?",
+            "mode": "learn"
+          }
+  Summary of Success
+  If all three work, you have a system that:
+   1. Reads your documents (RAG).
+   2. Grades your knowledge (Evaluation).
+   3. Remembers your history forever without getting slow (Context Engineering).
+
+
+   ++++++++++++++++++++++++++++++++
+{
+ "session_id": "agent_test_1",
+ "message": "Hi, I am a total beginner in Python. I find the syntax a bit confusing, especially lists and dictionaries. Can you explain them simply?",
+ "mode": "learn"
+}
+
+
+{
+      "session_id": "agent_test_1",
+      "message": "Actually, I've been reading about Big O notation and time complexity. Can you explain how the underlying CPython implementation of dictionaries affects their search speed compared to lists?",
+      "mode": "learn"
+}
+
+{
+     "session_id": "agent_test_1",
+     "message": "Tell me about Python decorators.",
+     "mode": "learn"
+}
+
+{
+     "session_id": "agent_test_1",
+     "message": "Give me a quiz on all the topics we have discussed so far.",
+     "mode": "quiz"
+}
