@@ -22,3 +22,5 @@ langchain-huggingface
 langchain-pinecone
 pinecone-client
 httpx
+pysqlite3-binary
+
