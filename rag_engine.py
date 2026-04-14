@@ -8,12 +8,12 @@ import chromadb
 import camelot
 from chromadb.config import Settings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
 from langchain_pinecone import PineconeVectorStore
 from pinecone import Pinecone
 
-# Initialize Embeddings (Local)
-embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+# Initialize Embeddings (Lightweight for 512MB RAM)
+embeddings = FastEmbedEmbeddings(model_name="BAAI/bge-small-en-v1.5")
 
 class RAGEngine:
     def __init__(self, persist_directory: str = "./chroma_db"):

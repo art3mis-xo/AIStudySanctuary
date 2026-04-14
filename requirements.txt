@@ -18,13 +18,9 @@ chromadb
 camelot-py
 opencv-python-headless
 tabulate
-langchain-huggingface
 langchain-pinecone
 pinecone-client
 httpx
 pysqlite3-binary
-sentence-transformers
-transformers
-torch
-hnswlib
+fastembed
 
