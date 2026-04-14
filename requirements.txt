@@ -24,6 +24,7 @@ pinecone-client
 httpx
 pysqlite3-binary
 sentence-transformers
+transformers
 torch
 hnswlib
 
