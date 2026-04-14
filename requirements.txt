@@ -16,7 +16,7 @@ python-pptx
 python-docx
 chromadb
 camelot-py
-opencv-python
+opencv-python-headless
 tabulate
 langchain-huggingface
 langchain-pinecone
