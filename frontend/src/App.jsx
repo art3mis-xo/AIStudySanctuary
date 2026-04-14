@@ -362,11 +362,26 @@ function UploadModal({ sessionId, onClose, setIsUploading }) {
 
 function AuthPage({ onLogin }) {
   const [isLogin, setIsLogin] = useState(true);
-  const [formData, setFormData] = useState({ username: "", email: "", password: "" });
+  const [formData, setFormData] = useState({ username: "", email: "", password: "", repeatPassword: "" });
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+
+  const passRules = {
+    length: formData.password.length >= 8,
+    upper: /[A-Z]/.test(formData.password),
+    lower: /[a-z]/.test(formData.password),
+    number: /[0-9]/.test(formData.password),
+    special: /[@$!%*?&]/.test(formData.password),
+    match: formData.password === formData.repeatPassword && formData.password !== ""
+  };
+
+  const isFormValid = isLogin ? (formData.username && formData.password) : (
+    formData.username && formData.email && Object.values(passRules).every(v => v)
+  );
 
   const handleSubmit = async (e) => {
     e.preventDefault(); setError("");
+    if (!isFormValid) return;
     try {
       if (isLogin) {
         const params = new URLSearchParams();
@@ -382,28 +397,70 @@ function AuthPage({ onLogin }) {
         form.append("password", formData.password);
         await api.post("/signup", form);
         setIsLogin(true); setError("Account created! Please login.");
+        setFormData({ username: "", email: "", password: "", repeatPassword: "" });
       }
     } catch (err) { setError(err.response?.data?.detail || "Auth Error"); }
   };
 
   return (
     <div className="auth-container">
-      <div className="auth-card">
+      <div className="auth-card" style={{ width: 420 }}>
         <div style={{ textAlign: "center", marginBottom: 24 }}>
           <div className="logo" style={{ justifyContent: "center" }}><div className="logo-mark"><BookOpen size={20} /></div>Study Sanctuary</div>
           <h2 style={{ fontSize: 20, marginTop: 8 }}>{isLogin ? "Welcome Back" : "Sign Up"}</h2>
         </div>
-        {error && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 16, textAlign: "center" }}>{error}</div>}
+        {error && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 16, textAlign: "center", background: "rgba(239,68,68,0.1)", padding: 8, borderRadius: 8 }}>{error}</div>}
         <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: 12 }}><label style={{ fontSize: 12, color: "var(--text2)" }}>Username</label><input className="auth-input" type="text" value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} /></div>
-          {!isLogin && <div style={{ marginBottom: 12 }}><label style={{ fontSize: 12, color: "var(--text2)" }}>Email</label><input className="auth-input" type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} /></div>}
-          <div style={{ marginBottom: 20 }}><label style={{ fontSize: 12, color: "var(--text2)" }}>Password</label><input className="auth-input" type="password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} /></div>
-          <button className="new-btn" style={{ padding: 12, fontSize: 14, fontWeight: 600 }}>{isLogin ? "Login" : "Create Account"}</button>
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 11, textTransform: "uppercase", color: "var(--text3)", letterSpacing: 0.5 }}>{isLogin ? "Username or Email" : "Username"}</label>
+            <input className="auth-input" type="text" value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} required />
+          </div>
+          {!isLogin && <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 11, textTransform: "uppercase", color: "var(--text3)", letterSpacing: 0.5 }}>Email Address</label>
+            <input className="auth-input" type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required />
+          </div>}
+          <div style={{ marginBottom: 12, position: "relative" }}>
+            <label style={{ fontSize: 11, textTransform: "uppercase", color: "var(--text3)", letterSpacing: 0.5 }}>Password</label>
+            <input className="auth-input" type={showPassword ? "text" : "password"} value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required />
+            <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: "absolute", right: 10, bottom: 10, background: "none", border: "none", color: "var(--text3)", cursor: "pointer" }}>
+                {showPassword ? <Eye size={16} /> : <Eye size={16} style={{ opacity: 0.5 }} />}
+            </button>
+          </div>
+          {!isLogin && (
+            <>
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 11, textTransform: "uppercase", color: "var(--text3)", letterSpacing: 0.5 }}>Repeat Password</label>
+                <input className="auth-input" type={showPassword ? "text" : "password"} value={formData.repeatPassword} onChange={e => setFormData({...formData, repeatPassword: e.target.value})} required />
+                {!passRules.match && formData.repeatPassword && <div style={{ fontSize: 10, color: "#f87171", marginTop: 4 }}>Passwords do not match</div>}
+              </div>
+              <div style={{ background: "var(--bg3)", padding: 12, borderRadius: 10, marginBottom: 20 }}>
+                <div style={{ fontSize: 10, color: "var(--text3)", marginBottom: 8, fontWeight: 600 }}>PASSWORD REQUIREMENTS</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                  <Rule check={passRules.length} text="8+ Characters" />
+                  <Rule check={passRules.upper} text="1 Uppercase" />
+                  <Rule check={passRules.lower} text="1 Lowercase" />
+                  <Rule check={passRules.number} text="1 Number" />
+                  <Rule check={passRules.special} text="1 Special (@$!)" />
+                  <Rule check={passRules.match} text="Matches" />
+                </div>
+              </div>
+            </>
+          )}
+          <button className="new-btn" disabled={!isFormValid} style={{ padding: 12, fontSize: 14, fontWeight: 600, opacity: isFormValid ? 1 : 0.5 }}>{isLogin ? "Login" : "Create Account"}</button>
         </form>
         <div style={{ textAlign: "center", marginTop: 20, fontSize: 13, color: "var(--text3)" }}>
           {isLogin ? "No account?" : "Have an account?"} <span style={{ color: "var(--mint)", cursor: "pointer", fontWeight: 500 }} onClick={() => setIsLogin(!isLogin)}>{isLogin ? "Sign up" : "Login"}</span>
         </div>
       </div>
+    </div>
+  );
+}
+
+function Rule({ check, text }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: check ? "var(--mint)" : "var(--text3)" }}>
+      {check ? <CheckCircle size={10} /> : <div style={{ width: 10, height: 10, borderRadius: "50%", border: "1px solid var(--text3)" }} />}
+      {text}
     </div>
   );
 }

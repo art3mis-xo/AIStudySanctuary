@@ -39,6 +39,13 @@ def on_startup():
 
 # ===== AUTH Endpoints =====
 
+import re
+
+def validate_password(password: str) -> bool:
+    # 8+ chars, 1 uppercase, 1 lowercase, 1 digit, 1 special char
+    pattern = r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$"
+    return bool(re.match(pattern, password))
+
 @app.post("/signup")
 def signup(username: str = Form(...), email: str = Form(...), password: str = Form(...), db: Session = Depends(get_session)):
     # Check if user exists
@@ -46,6 +53,9 @@ def signup(username: str = Form(...), email: str = Form(...), password: str = Fo
     if existing_user:
         raise HTTPException(status_code=400, detail="Username or email already registered")
     
+    if not validate_password(password):
+        raise HTTPException(status_code=400, detail="Password does not meet security requirements")
+
     hashed_pwd = get_password_hash(password)
     new_user = User(username=username, email=email, hashed_password=hashed_pwd)
     db.add(new_user)
@@ -55,9 +65,11 @@ def signup(username: str = Form(...), email: str = Form(...), password: str = Fo
 
 @app.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_session)):
-    user = db.exec(select(User).where(User.username == form_data.username)).first()
+    # Search by username OR email
+    user = db.exec(select(User).where((User.username == form_data.username) | (User.email == form_data.username))).first()
+    
     if not user or not verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(status_code=401, detail="Incorrect username or password")
+        raise HTTPException(status_code=401, detail="Incorrect username/email or password")
     
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
