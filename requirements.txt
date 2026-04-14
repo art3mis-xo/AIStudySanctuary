@@ -23,4 +23,7 @@ langchain-pinecone
 pinecone-client
 httpx
 pysqlite3-binary
+sentence-transformers
+torch
+hnswlib
 
