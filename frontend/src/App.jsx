@@ -11,7 +11,8 @@ import remarkGfm from "remark-gfm";
 import mermaid from "mermaid";
 
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
-const API_BASE = "http://localhost:8000";
+// Automatically use Render backend URL in production, fallback to localhost for dev
+const API_BASE = import.meta.env.VITE_API_URL || (window.location.hostname === "localhost" ? "http://localhost:8000" : "");
 
 mermaid.initialize({ 
   startOnLoad: false, 
