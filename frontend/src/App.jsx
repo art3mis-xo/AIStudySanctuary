@@ -379,9 +379,14 @@ function AuthPage({ onLogin }) {
     formData.username && formData.email && Object.values(passRules).every(v => v)
   );
 
+  const [loading, setLoading] = useState(false);
+
   const handleSubmit = async (e) => {
-    e.preventDefault(); setError("");
+    e.preventDefault(); 
+    setError("");
     if (!isFormValid) return;
+    
+    setLoading(true);
     try {
       if (isLogin) {
         const params = new URLSearchParams();
@@ -396,10 +401,21 @@ function AuthPage({ onLogin }) {
         form.append("email", formData.email);
         form.append("password", formData.password);
         await api.post("/signup", form);
-        setIsLogin(true); setError("Account created! Please login.");
-        setFormData({ username: "", email: "", password: "", repeatPassword: "" });
+        
+        // Auto-login after successful signup
+        const params = new URLSearchParams();
+        params.append("username", formData.username);
+        params.append("password", formData.password);
+        const { data } = await api.post("/login", params);
+        sessionStorage.setItem("sanctuary_token", data.access_token);
+        onLogin();
       }
-    } catch (err) { setError(err.response?.data?.detail || "Auth Error"); }
+    } catch (err) { 
+      console.error("Auth Error Details:", err.response || err);
+      setError(err.response?.data?.detail || "Auth Error - Please check logs"); 
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -446,7 +462,20 @@ function AuthPage({ onLogin }) {
               </div>
             </>
           )}
-          <button className="new-btn" disabled={!isFormValid} style={{ padding: 12, fontSize: 14, fontWeight: 600, opacity: isFormValid ? 1 : 0.5 }}>{isLogin ? "Login" : "Create Account"}</button>
+          <button 
+            className="new-btn" 
+            type="submit"
+            disabled={!isFormValid || loading} 
+            style={{ 
+              padding: 12, 
+              fontSize: 14, 
+              fontWeight: 600, 
+              opacity: (isFormValid && !loading) ? 1 : 0.5,
+              justifyContent: "center"
+            }}
+          >
+            {loading ? <RefreshCw className="spinner" size={16} /> : (isLogin ? "Login" : "Create Account")}
+          </button>
         </form>
         <div style={{ textAlign: "center", marginTop: 20, fontSize: 13, color: "var(--text3)" }}>
           {isLogin ? "No account?" : "Have an account?"} <span style={{ color: "var(--mint)", cursor: "pointer", fontWeight: 500 }} onClick={() => setIsLogin(!isLogin)}>{isLogin ? "Sign up" : "Login"}</span>

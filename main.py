@@ -18,7 +18,18 @@ from auth import get_password_hash, verify_password, create_access_token, get_cu
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta
 
-app = FastAPI()
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    print("Starting up: Creating database tables...")
+    create_db_and_tables()
+    yield
+    # Shutdown
+    print("Shutting down...")
+
+app = FastAPI(lifespan=lifespan)
 
 # Enable CORS for React Frontend
 origins = [
@@ -41,10 +52,6 @@ app.add_middleware(
 # Temporary storage for uploaded files
 UPLOAD_DIR = "./temp_uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-@app.on_event("startup")
-def on_startup():
-    create_db_and_tables()
 
 # ===== AUTH Endpoints =====
 
