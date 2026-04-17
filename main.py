@@ -20,10 +20,19 @@ from datetime import timedelta
 
 app = FastAPI()
 
-# Enable CORS for React Frontend (Vite port 5173)
+# Enable CORS for React Frontend
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+if os.getenv("FRONTEND_URL"):
+    origins.append(os.getenv("FRONTEND_URL"))
+# Also allow any .onrender.com subdomain for convenience during testing
+# allow_origin_regex="https://.*\.onrender\.com"
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -66,17 +75,23 @@ def signup(username: str = Form(...), email: str = Form(...), password: str = Fo
 @app.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_session)):
     # Search by username OR email
+    print(f"Login attempt for: {form_data.username}")
     user = db.exec(select(User).where((User.username == form_data.username) | (User.email == form_data.username))).first()
-    
-    if not user or not verify_password(form_data.password, user.hashed_password):
+
+    if not user:
+        print(f"Login failed: User {form_data.username} not found")
         raise HTTPException(status_code=401, detail="Incorrect username/email or password")
-    
+
+    if not verify_password(form_data.password, user.hashed_password):
+        print(f"Login failed: Invalid password for {form_data.username}")
+        raise HTTPException(status_code=401, detail="Incorrect username/email or password")
+
+    print(f"Login successful for: {form_data.username}")
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
-
 @app.get("/me")
 def get_me(current_user: User = Depends(get_current_user)):
     return {"username": current_user.username, "email": current_user.email}
