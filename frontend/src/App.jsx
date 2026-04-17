@@ -411,8 +411,16 @@ function AuthPage({ onLogin }) {
         onLogin();
       }
     } catch (err) { 
-      console.error("Auth Error Details:", err.response || err);
-      setError(err.response?.data?.detail || "Auth Error - Please check logs"); 
+      console.error("Auth Error Details:", err);
+      if (err.response) {
+        console.error("Server Response Data:", err.response.data);
+        setError(err.response.data?.detail || `Server Error: ${err.response.status}`);
+      } else if (err.request) {
+        console.error("No response received. Possible CORS or Network issue.");
+        setError("Network Error: Cannot reach backend. Check CORS settings.");
+      } else {
+        setError(`Error: ${err.message}`);
+      }
     } finally {
       setLoading(false);
     }

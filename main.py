@@ -20,11 +20,14 @@ from datetime import timedelta
 
 from contextlib import asynccontextmanager
 
+from fastapi import Request
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     print("Starting up: Creating database tables...")
     create_db_and_tables()
+    print(f"CORS Allowed Origins: {origins}")
     yield
     # Shutdown
     print("Shutting down...")
@@ -35,19 +38,27 @@ app = FastAPI(lifespan=lifespan)
 origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://localhost:8000",
 ]
+
+# Add Render URLs and any environment-specific URLs
 if os.getenv("FRONTEND_URL"):
     origins.append(os.getenv("FRONTEND_URL"))
-# Also allow any .onrender.com subdomain for convenience during testing
-# allow_origin_regex="https://.*\.onrender\.com"
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"], # Temporarily allow all for debugging Render connectivity
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    origin = request.headers.get("origin")
+    print(f"Incoming request: {request.method} {request.url.path} from {origin}")
+    response = await call_next(request)
+    return response
 
 # Temporary storage for uploaded files
 UPLOAD_DIR = "./temp_uploads"
