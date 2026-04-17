@@ -39,6 +39,7 @@ origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:8000",
+    "https://aistudysanctuary-frontend.onrender.com"
 ]
 
 # Add Render URLs and any environment-specific URLs
