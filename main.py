@@ -226,7 +226,8 @@ async def upload_files(session_id: str = Form(...), files: List[UploadFile] = Fi
     for file in files:
         file_path = os.path.join(UPLOAD_DIR, file.filename)
         with open(file_path, "wb") as f:
-            f.write(await file.read())
+            while chunk := await file.read(1024 * 1024):  # Read 1MB at a time
+                f.write(chunk)
         
         # Process and index the file in RAG engine with user_id metadata
         rag_engine.process_file(file_path, session_id, user_id=current_user.id, is_past_paper=is_past_paper)

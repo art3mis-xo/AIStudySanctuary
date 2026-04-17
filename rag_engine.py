@@ -5,7 +5,7 @@ from pypdf import PdfReader
 from pptx import Presentation
 from docx import Document
 import chromadb
-import camelot
+# import camelot  # Moved to local import in _extract_tables
 from chromadb.config import Settings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
@@ -73,16 +73,18 @@ class RAGEngine:
         return text
 
     def _extract_tables(self, file_path: str) -> List[str]:
+        import camelot # Local import to save memory if not used
         ext = os.path.splitext(file_path)[1].lower()
         table_markdowns = []
         if ext == ".pdf":
             try:
-                tables = camelot.read_pdf(file_path, pages='all', flavor='lattice')
+                # Limit pages to avoid memory exhaustion on large PDFs
+                tables = camelot.read_pdf(file_path, pages='1-10', flavor='lattice')
                 for table in tables:
                     table_markdowns.append(table.df.to_markdown(index=False))
             except Exception as e:
                 try:
-                    tables = camelot.read_pdf(file_path, pages='all', flavor='stream')
+                    tables = camelot.read_pdf(file_path, pages='1-10', flavor='stream')
                     for table in tables:
                         table_markdowns.append(table.df.to_markdown(index=False))
                 except Exception as e2:
@@ -114,22 +116,30 @@ class RAGEngine:
 
         # 2. Index in selected Vector DB
         if self.use_pinecone:
+            # Pinecone VectorStore from_texts already handles batching internally or is less memory intensive on client
             PineconeVectorStore.from_texts(
                 texts=all_chunks,
                 embedding=embeddings,
                 metadatas=all_metadatas,
                 index_name=self.pinecone_index_name,
-                namespace=f"user_{user_id}" # Isolate by user at the namespace level
+                namespace=f"user_{user_id}"
             )
         else:
-            vector_embeddings = embeddings.embed_documents(all_chunks)
-            ids = [f"u{user_id}_{session_id}_{filename}_{i}_{os.urandom(2).hex()}" for i in range(len(all_chunks))]
-            self.collection.add(
-                ids=ids,
-                embeddings=vector_embeddings,
-                documents=all_chunks,
-                metadatas=all_metadatas
-            )
+            # Batching embeddings to avoid memory spikes
+            batch_size = 20
+            for i in range(0, len(all_chunks), batch_size):
+                batch_chunks = all_chunks[i : i + batch_size]
+                batch_metadatas = all_metadatas[i : i + batch_size]
+                
+                vector_embeddings = embeddings.embed_documents(batch_chunks)
+                ids = [f"u{user_id}_{session_id}_{filename}_{i+j}_{os.urandom(2).hex()}" for j in range(len(batch_chunks))]
+                
+                self.collection.add(
+                    ids=ids,
+                    embeddings=vector_embeddings,
+                    documents=batch_chunks,
+                    metadatas=batch_metadatas
+                )
 
     def archive_chat_messages(self, session_id: str, user_id: int, messages: List[Dict[str, str]]):
         chunks = [f"{msg['role'].upper()}: {msg['content']}" for msg in messages]
@@ -144,9 +154,20 @@ class RAGEngine:
                 namespace=f"user_{user_id}"
             )
         else:
-            ids = [f"archive_u{user_id}_{session_id}_{i}_{os.urandom(4).hex()}" for i in range(len(chunks))]
-            vector_embeddings = embeddings.embed_documents(chunks)
-            self.collection.add(ids=ids, embeddings=vector_embeddings, documents=chunks, metadatas=metadatas)
+            batch_size = 20
+            for i in range(0, len(chunks), batch_size):
+                batch_chunks = chunks[i : i + batch_size]
+                batch_metadatas = metadatas[i : i + batch_size]
+                
+                ids = [f"archive_u{user_id}_{session_id}_{i+j}_{os.urandom(4).hex()}" for j in range(len(batch_chunks))]
+                vector_embeddings = embeddings.embed_documents(batch_chunks)
+                
+                self.collection.add(
+                    ids=ids, 
+                    embeddings=vector_embeddings, 
+                    documents=batch_chunks, 
+                    metadatas=batch_metadatas
+                )
 
     def query(self, session_id: str, question: str, user_id: int, top_k: int = 4, doc_type: Optional[str] = None) -> List[Dict[str, Any]]:
         formatted_results = []
