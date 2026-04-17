@@ -12,22 +12,18 @@ from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
 from langchain_pinecone import PineconeVectorStore
 from pinecone import Pinecone
 
-# Initialize Embeddings (Lightweight for 512MB RAM)
-embeddings = FastEmbedEmbeddings(model_name="BAAI/bge-small-en-v1.5")
-
 class RAGEngine:
     def __init__(self, persist_directory: str = "./chroma_db"):
         # Setup Cloud Vector DB (Pinecone) if keys are present
         self.pinecone_api_key = os.getenv("PINECONE_API_KEY")
         self.pinecone_index_name = os.getenv("PINECONE_INDEX_NAME")
         self.use_pinecone = bool(self.pinecone_api_key and self.pinecone_index_name)
+        self._embeddings = None # Lazy load embeddings
 
         if self.use_pinecone:
             self.pc = Pinecone(api_key=self.pinecone_api_key)
-            # Pinecone initialization happens through LangChain's PineconeVectorStore
             print("RAG Engine: Using Cloud Storage (Pinecone)")
         else:
-            # Fallback to Local ChromaDB
             self.client = chromadb.PersistentClient(path=persist_directory)
             self.collection = self.client.get_or_create_collection(
                 name="session_docs",
@@ -39,6 +35,13 @@ class RAGEngine:
             chunk_size=1000,
             chunk_overlap=100
         )
+
+    @property
+    def embeddings(self):
+        if self._embeddings is None:
+            print("RAG Engine: Loading Embedding Model (FastEmbed)...")
+            self._embeddings = FastEmbedEmbeddings(model_name="BAAI/bge-small-en-v1.5")
+        return self._embeddings
 
     def _extract_text(self, file_path: str) -> str:
         ext = os.path.splitext(file_path)[1].lower()
@@ -119,19 +122,19 @@ class RAGEngine:
             # Pinecone VectorStore from_texts already handles batching internally or is less memory intensive on client
             PineconeVectorStore.from_texts(
                 texts=all_chunks,
-                embedding=embeddings,
+                embedding=self.embeddings,
                 metadatas=all_metadatas,
                 index_name=self.pinecone_index_name,
                 namespace=f"user_{user_id}"
             )
         else:
             # Batching embeddings to avoid memory spikes
-            batch_size = 20
+            batch_size = 10 # Reduced batch size for 512MB RAM
             for i in range(0, len(all_chunks), batch_size):
                 batch_chunks = all_chunks[i : i + batch_size]
                 batch_metadatas = all_metadatas[i : i + batch_size]
                 
-                vector_embeddings = embeddings.embed_documents(batch_chunks)
+                vector_embeddings = self.embeddings.embed_documents(batch_chunks)
                 ids = [f"u{user_id}_{session_id}_{filename}_{i+j}_{os.urandom(2).hex()}" for j in range(len(batch_chunks))]
                 
                 self.collection.add(
@@ -148,19 +151,19 @@ class RAGEngine:
         if self.use_pinecone:
             PineconeVectorStore.from_texts(
                 texts=chunks,
-                embedding=embeddings,
+                embedding=self.embeddings,
                 metadatas=metadatas,
                 index_name=self.pinecone_index_name,
                 namespace=f"user_{user_id}"
             )
         else:
-            batch_size = 20
+            batch_size = 10
             for i in range(0, len(chunks), batch_size):
                 batch_chunks = chunks[i : i + batch_size]
                 batch_metadatas = metadatas[i : i + batch_size]
                 
                 ids = [f"archive_u{user_id}_{session_id}_{i+j}_{os.urandom(4).hex()}" for j in range(len(batch_chunks))]
-                vector_embeddings = embeddings.embed_documents(batch_chunks)
+                vector_embeddings = self.embeddings.embed_documents(batch_chunks)
                 
                 self.collection.add(
                     ids=ids, 
@@ -174,10 +177,20 @@ class RAGEngine:
         print(f"DEBUG: RAG Query for user {user_id}, session {session_id} - Question: {question}")
         
         if self.use_pinecone:
-            # ... Pinecone logic with user namespace ...
-            pass
+            vectorstore = PineconeVectorStore(index_name=self.pinecone_index_name, embedding=self.embeddings, namespace=f"user_{user_id}")
+            # Filter by session_id and optionally doc_type
+            filter_dict = {"session_id": session_id}
+            if doc_type:
+                filter_dict["type"] = doc_type
+                
+            results = vectorstore.similarity_search(question, k=top_k, filter=filter_dict)
+            for doc in results:
+                formatted_results.append({
+                    "content": doc.page_content,
+                    "source": doc.metadata.get("source", "Unknown")
+                })
         else:
-            query_embedding = embeddings.embed_query(question)
+            query_embedding = self.embeddings.embed_query(question)
             
             # ChromaDB requires explicit $and for multiple conditions
             conditions = [
@@ -210,7 +223,7 @@ class RAGEngine:
     def delete_session(self, session_id: str, user_id: int):
         """Wipes all documents and chat archives for a session/user."""
         if self.use_pinecone:
-            vectorstore = PineconeVectorStore(index_name=self.pinecone_index_name, embedding=embeddings, namespace=f"user_{user_id}")
+            vectorstore = PineconeVectorStore(index_name=self.pinecone_index_name, embedding=self.embeddings, namespace=f"user_{user_id}")
             # Pinecone deletion is more complex by metadata filter, normally done via namespace
             vectorstore.delete(delete_all=True)
         else:
