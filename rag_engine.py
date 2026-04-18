@@ -21,20 +21,38 @@ class RAGEngine:
         self._embeddings = None # Lazy load embeddings
 
         if self.use_pinecone:
-            self.pc = Pinecone(api_key=self.pinecone_api_key)
-            print("RAG Engine: Using Cloud Storage (Pinecone)")
+            try:
+                self.pc = Pinecone(api_key=self.pinecone_api_key)
+                # Verify index dimension to avoid 500 errors during processing
+                index_info = self.pc.Index(self.pinecone_index_name).describe_index_stats()
+                # If index exists but has no vectors yet, describe_index_stats() works but dimension might be in describe_index
+                index_desc = self.pc.describe_index(self.pinecone_index_name)
+                
+                if index_desc.dimension != 384:
+                    print(f"CRITICAL WARNING: Pinecone index '{self.pinecone_index_name}' dimension is {index_desc.dimension}, but the embedding model (bge-small) is 384.")
+                    print("Action Required: Delete and recreate the Pinecone index with 384 dimensions.")
+                
+                print(f"RAG Engine: Using Cloud Storage (Pinecone) - Index: {self.pinecone_index_name} ({index_desc.dimension}d)")
+            except Exception as e:
+                print(f"RAG Engine: Error connecting to Pinecone: {e}")
+                print("Falling back to Local Storage (ChromaDB)")
+                self.use_pinecone = False
+                self._init_chroma(persist_directory)
         else:
-            self.client = chromadb.PersistentClient(path=persist_directory)
-            self.collection = self.client.get_or_create_collection(
-                name="session_docs",
-                metadata={"hnsw:space": "cosine"}
-            )
-            print("RAG Engine: Using Local Storage (ChromaDB)")
+            self._init_chroma(persist_directory)
 
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,
             chunk_overlap=100
         )
+
+    def _init_chroma(self, persist_directory: str):
+        self.client = chromadb.PersistentClient(path=persist_directory)
+        self.collection = self.client.get_or_create_collection(
+            name="session_docs",
+            metadata={"hnsw:space": "cosine"}
+        )
+        print("RAG Engine: Using Local Storage (ChromaDB)")
 
     @property
     def embeddings(self):
