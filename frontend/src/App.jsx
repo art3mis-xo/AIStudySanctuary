@@ -16,11 +16,14 @@ const API_BASE = import.meta.env.VITE_API_URL || (window.location.hostname === "
 
 mermaid.initialize({ 
   startOnLoad: false, 
-  theme: 'base', 
+  theme: 'dark', 
   securityLevel: 'loose',
   fontFamily: 'Inter, sans-serif',
+  fontSize: 14,
   suppressError: true,
+  flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
   themeVariables: {
+    fontSize: '14px',
     primaryColor: '#1e293b',
     primaryTextColor: '#f8fafc',
     primaryBorderColor: '#6366f1',
@@ -45,39 +48,49 @@ function Mermaid({ chart }) {
 
   useEffect(() => {
     if (!chart) return;
-    
+
     let isMounted = true;
-    
+
     const renderDiagram = async () => {
       try {
         if (isMounted) {
           setError(null);
           setSvg("");
         }
-        
+
+        // 1. Clean and Fix the input chart code (Syntax Doctor)
         let cleanChart = chart.replace(/```mermaid/g, "").replace(/```/g, "").trim();
-        cleanChart = cleanChart.replace(/\|([^|]+)\|>/g, '|$1|').replace(/\|>/g, '|');
+        
+        // Auto-fix common syntax errors that cause crashes
+        // Fix 1: Convert any pipe labels that might be causing issues
+        cleanChart = cleanChart.replace(/\|([^|]+)\|/g, '-- "$1" --');
+        
+        // Fix 2: Remove any trailing |> or random symbols
+        cleanChart = cleanChart.replace(/\|>/g, '');
 
-        const lines = cleanChart.split("\n");
-        const firstRealLine = lines.find(l => {
-          const t = l.trim();
-          return t && !t.startsWith("%%") && !t.startsWith("---");
-        });
-
+        // Ensure it starts with a valid Mermaid type
         const validTypes = /^(graph|flowchart|sequenceDiagram|pie|gantt|classDiagram|stateDiagram|erDiagram|journey|gitGraph|mindmap|timeline|block-beta|architecture|packet|kanban|zenuml)/i;
         
-        if (!firstRealLine || !validTypes.test(firstRealLine.trim())) {
-            cleanChart = 'graph TD\n' + cleanChart;
+        // Split by lines to find the first real command
+        const chartLines = cleanChart.split('\n');
+        const firstLine = chartLines.find(l => l.trim() !== "");
+        
+        if (!firstLine || !validTypes.test(firstLine.trim())) {
+            cleanChart = 'flowchart TD\n' + cleanChart;
         }
 
-        const id = `mermaid-${Math.random().toString(36).substring(2, 11)}`;
-        const { svg: generatedSvg } = await mermaid.render(id, cleanChart);
-        
-        if (isMounted) {
-          setSvg(generatedSvg);
+        // 2. Render using Mermaid's async API
+        const id = `mm-${Math.random().toString(36).substring(2, 9)}`; // Shorter, simpler ID
+        try {
+          console.log("Rendering Mermaid Chart:", cleanChart);
+          const { svg: generatedSvg } = await mermaid.render(id, cleanChart);
+          if (isMounted) setSvg(generatedSvg);
+        } catch (e) {
+          console.error("Mermaid.render fail:", e);
+          if (isMounted) setError(true);
         }
       } catch (err) {
-        console.error("Mermaid Render Error:", err);
+        console.error("Mermaid Outer Error:", err);
         if (isMounted) setError(true);
       }
     };
@@ -88,35 +101,27 @@ function Mermaid({ chart }) {
 
   if (error) {
     return (
-      <div style={{ 
-        color: "#f87171", fontSize: "11px", background: "rgba(239,68,68,0.05)", 
-        padding: "10px", borderRadius: "8px", border: "1px solid rgba(239,68,68,0.15)", margin: "10px 0"
-      }}>
-        <div style={{ fontWeight: 600 }}>Visual rendering failed.</div>
-        <pre style={{ fontSize: "10px", marginTop: "5px", opacity: 0.8, overflowX: "auto" }}>{chart}</pre>
+      <div className="mermaid-container" style={{ border: "1px dashed #ef4444", display: "block" }}>
+        <div style={{ color: "#ef4444", fontSize: "12px", textAlign: "center", marginBottom: "8px" }}>
+          ⚠️ Mermaid diagram syntax error.
+        </div>
+        <pre style={{ fontSize: "10px", color: "#94a3b8", opacity: 0.8, overflowX: "auto", margin: 0 }}>
+          {chart}
+        </pre>
       </div>
     );
   }
 
-  if (!svg) return <div className="spinner" style={{ margin: "10px auto", width: 20, height: 20 }} />;
+  if (!svg) return <div className="spinner" style={{ margin: "20px auto", width: 24, height: 24 }} />;
 
   return (
     <>
       <div 
         className="mermaid-container"
         onClick={() => setIsZoomed(true)}
-        style={{ 
-          margin: "12px 0", background: "rgba(30,41,59,0.7)", padding: "16px", 
-          borderRadius: "10px", border: "1px solid var(--border2)", width: "100%", 
-          overflowX: "auto", minHeight: "50px", cursor: "zoom-in"
-        }}
-      >
-          <div 
-              style={{ width: "100%", display: "flex", justifyContent: "center" }}
-              dangerouslySetInnerHTML={{ __html: svg }} 
-          />
-      </div>
-
+        style={{ cursor: "zoom-in" }}
+        dangerouslySetInnerHTML={{ __html: svg }}
+      />
       <AnimatePresence>
         {isZoomed && (
           <motion.div 
@@ -235,15 +240,68 @@ const STYLES = `
   .spinner { width: 30px; height: 30px; border: 3px solid rgba(16,185,129,0.1); border-top-color: var(--mint); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 20px auto; }
   @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
   
-  /* Prevent Mermaid from injecting huge error overlays */
-  #dmermaid { display: none !important; }
-  .mermaid-container svg { max-width: 100% !important; height: auto !important; }
-  .zoomed-mermaid svg { max-width: 90vw !important; max-height: 90vh !important; width: auto !important; height: auto !important; }
+  /* Global guard for Mermaid errors */
+  #dmermaid, .mermaid-err-msg, [id^="dmermaid"], .mermaid-error, .mermaidTooltip { 
+    display: none !important; 
+    opacity: 0 !important;
+    height: 0 !important;
+    width: 0 !important;
+    position: fixed !important;
+    top: -1000px !important;
+  }
   
-  /* Force text visibility inside Mermaid SVGs */
-  .mermaid-container svg text, .zoomed-mermaid svg text { fill: #f8fafc !important; font-family: 'Inter', sans-serif !important; }
-  .mermaid-container svg .edgeLabel text, .zoomed-mermaid svg .edgeLabel text { fill: #f8fafc !important; }
-  .mermaid-container svg .nodeLabel, .zoomed-mermaid svg .nodeLabel { color: #f8fafc !important; }
+  .mermaid-container { 
+    max-width: 100% !important; 
+    overflow: hidden; 
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    margin: 15px 0;
+    padding: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100px;
+  }
+
+  .mermaid-container svg {
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: 400px !important; /* Prevent 'huge' rendering */
+  }
+  .mermaid-container svg { 
+    max-width: 100% !important; 
+    height: auto !important;
+    filter: drop-shadow(0 0 10px rgba(0,0,0,0.5));
+  }
+  
+  /* Force ALL Mermaid text, lines, and boxes to be visible */
+  .mermaid-container svg *, .zoomed-mermaid svg * {
+    font-family: 'Inter', sans-serif !important;
+  }
+  .mermaid-container svg text, .zoomed-mermaid svg text { 
+    fill: #ffffff !important; 
+    font-weight: 500 !important;
+  }
+  .mermaid-container svg .node rect, 
+  .mermaid-container svg .node circle, 
+  .mermaid-container svg .node polygon,
+  .mermaid-container svg .node path {
+    fill: #1e293b !important;
+    stroke: #6366f1 !important;
+    stroke-width: 2px !important;
+  }
+  .mermaid-container svg .edgePath .path {
+    stroke: #94a3b8 !important;
+    stroke-width: 2px !important;
+  }
+  .mermaid-container svg .markerPath {
+    fill: #94a3b8 !important;
+  }
+  .mermaid-container svg .edgeLabel text {
+    fill: #cbd5e1 !important;
+    background: #0f172a !important;
+  }
   
   .markdown-content { overflow-wrap: break-word; }
   .markdown-content h1, .markdown-content h2, .markdown-content h3 { margin: 12px 0 6px; font-size: 1.1em; color: var(--mint); }

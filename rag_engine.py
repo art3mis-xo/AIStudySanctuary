@@ -30,9 +30,11 @@ class RAGEngine:
                 
                 if index_desc.dimension != 384:
                     print(f"CRITICAL WARNING: Pinecone index '{self.pinecone_index_name}' dimension is {index_desc.dimension}, but the embedding model (bge-small) is 384.")
-                    print("Action Required: Delete and recreate the Pinecone index with 384 dimensions.")
-                
-                print(f"RAG Engine: Using Cloud Storage (Pinecone) - Index: {self.pinecone_index_name} ({index_desc.dimension}d)")
+                    print("FALLING BACK TO LOCAL STORAGE (ChromaDB) to prevent errors.")
+                    self.use_pinecone = False
+                    self._init_chroma(persist_directory)
+                else:
+                    print(f"RAG Engine: Using Cloud Storage (Pinecone) - Index: {self.pinecone_index_name} ({index_desc.dimension}d)")
             except Exception as e:
                 print(f"RAG Engine: Error connecting to Pinecone: {e}")
                 print("Falling back to Local Storage (ChromaDB)")
