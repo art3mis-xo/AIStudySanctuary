@@ -50,7 +50,7 @@ def profiler_node(state: StudyState):
             db.commit()
             db.refresh(db_profile)
 
-        # Only run extraction if we have enough history (e.g., > 2 messages)
+        # Only run extraction if we have enough history ( > 2 messages)
         if len(state["history"]) >= 2:
             convo_text = "\n".join([f"{m.type}: {m.content}" for m in state["history"][-5:]])
             
@@ -115,10 +115,15 @@ def teacher_node(state: StudyState):
         "2. Use bullet points (* or -) for lists. Ensure each point is on a new line.\n"
         "3. Use double newlines between paragraphs and sections.\n"
         "4. Bold key terms using **term**.\n"
-        "5. If you use Mermaid diagrams, always start with 'flowchart TD'.\n"
-        "6. Use simple IDs and double-quoted labels: A[\"Text\"] --> B[\"Text\"].\n"
-        "7. For labeled arrows, use: A -- \"Label\" --> B.\n"
-        "8. Avoid ALL special characters except alphanumeric, spaces, and simple punctuation inside quotes.\n\n"
+        "5. If you use Mermaid diagrams, ALWAYS wrap them in a Markdown code block like this:\n"
+        "```mermaid\n"
+        "flowchart TD\n"
+        "A[\"Start\"] --> B[\"End\"]\n"
+        "```\n"
+        "6. Always start Mermaid diagrams with 'flowchart TD'.\n"
+        "7. Use simple IDs and double-quoted labels: A[\"Text\"] --> B[\"Text\"].\n"
+        "8. For labeled arrows, use: A -- \"Label\" --> B.\n"
+        "9. Avoid ALL special characters except alphanumeric, spaces, and simple punctuation inside quotes.\n\n"
         "SOURCE CITATION RULE:\n"
         "At the very end of your response, you MUST include a line exactly like this: 'Source: [Filename]'.\n"
         "If you used multiple sources, list them comma-separated: 'Source: file1.pdf, file2.docx'.\n"
