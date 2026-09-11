@@ -66,8 +66,3 @@ python stress_test.py
     ```bash
     cd frontend && npm install && npm run dev
     ```
-
-## 📋 Constraints & Maintenance
-For detailed information on architectural limitations, Render memory management, and persistent storage strategies, refer to:
-*   `GEMINI.md` - Development workflows and repo-specific mandates.
-*   `constraints.md` - Technical limitations and accommodation strategies.
